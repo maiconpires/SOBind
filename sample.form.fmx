@@ -1,0 +1,256 @@
+object Form1: TForm1
+  Left = 0
+  Top = 0
+  Caption = 'Form1'
+  ClientHeight = 735
+  ClientWidth = 344
+  FormFactor.Width = 320
+  FormFactor.Height = 480
+  FormFactor.Devices = [Desktop]
+  OnCreate = FormCreate
+  OnDestroy = FormDestroy
+  DesignerMasterStyle = 0
+  object BtnTestarObjToUI: TButton
+    Position.X = 8.000000000000000000
+    Position.Y = 505.000000000000000000
+    Size.Width = 169.000000000000000000
+    Size.Height = 32.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 0
+    Text = 'Atualizar Controles'
+    TextSettings.Trimming = None
+    OnClick = BtnTestarObjToUIClick
+  end
+  object btnDebug: TButton
+    Position.X = 258.000000000000000000
+    Position.Y = 467.000000000000000000
+    Size.Width = 77.000000000000000000
+    Size.Height = 32.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 1
+    Text = 'Debug'
+    TextSettings.Trimming = None
+    OnClick = btnDebugClick
+  end
+  object btnImageFile: TButton
+    Position.X = 8.000000000000000000
+    Position.Y = 467.000000000000000000
+    Size.Width = 77.000000000000000000
+    Size.Height = 30.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 2
+    Text = 'Foto Arquivo'
+    TextSettings.Trimming = None
+    OnClick = btnImageFileClick
+  end
+  object btnImageBase64: TButton
+    Position.X = 91.000000000000000000
+    Position.Y = 467.000000000000000000
+    Size.Width = 77.000000000000000000
+    Size.Height = 30.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 4
+    Text = 'Foto Base64'
+    TextSettings.Trimming = None
+    OnClick = btnImageBase64Click
+  end
+  object Button3: TButton
+    Position.X = 175.000000000000000000
+    Position.Y = 467.000000000000000000
+    Size.Width = 77.000000000000000000
+    Size.Height = 30.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 5
+    Text = 'Foto TBitmap'
+    TextSettings.Trimming = None
+    OnClick = Button3Click
+  end
+  object GroupBox1: TGroupBox
+    Align = Top
+    Margins.Left = 5.000000000000000000
+    Margins.Top = 5.000000000000000000
+    Margins.Right = 5.000000000000000000
+    Margins.Bottom = 5.000000000000000000
+    Position.X = 5.000000000000000000
+    Position.Y = 5.000000000000000000
+    Size.Width = 334.000000000000000000
+    Size.Height = 244.000000000000000000
+    Size.PlatformDefault = False
+    Text = 'Formul'#225'rio'
+    TabOrder = 6
+    object Layout1: TLayout
+      Align = Top
+      Size.Width = 334.000000000000000000
+      Size.Height = 137.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 34
+      object CheckAtivo: TCheckBox
+        Position.X = 16.000000000000000000
+        Position.Y = 109.000000000000000000
+        TabOrder = 1
+        Text = 'CheckAtivo'
+      end
+      object Label3: TLabel
+        Position.X = 16.000000000000000000
+        Position.Y = 84.000000000000000000
+        Size.Width = 73.000000000000000000
+        Size.Height = 17.000000000000000000
+        Size.PlatformDefault = False
+        Text = 'Nascimento:'
+        TabOrder = 40
+      end
+      object detNascimento: TDateEdit
+        Date = 45985.000000000000000000
+        Position.X = 90.000000000000000000
+        Position.Y = 81.000000000000000000
+        Size.Width = 87.000000000000000000
+        Size.Height = 22.000000000000000000
+        Size.PlatformDefault = False
+        TabOrder = 43
+      end
+      object CmbEstado: TComboBox
+        Anchors = [akLeft, akTop, akRight]
+        Position.X = 185.000000000000000000
+        Position.Y = 81.000000000000000000
+        Size.Width = 136.000000000000000000
+        Size.Height = 22.000000000000000000
+        Size.PlatformDefault = False
+        TabOrder = 2
+      end
+      object lblIdade: TLabel
+        Anchors = [akTop, akRight]
+        Position.X = 294.000000000000000000
+        Position.Y = 59.000000000000000000
+        Size.Width = 25.000000000000000000
+        Size.Height = 17.000000000000000000
+        Size.PlatformDefault = False
+        TextSettings.HorzAlign = Center
+        Text = '0'
+        TabOrder = 42
+      end
+      object tkbIdade: TTrackBar
+        Anchors = [akLeft, akTop, akRight]
+        CanParentFocus = True
+        Orientation = Horizontal
+        Position.X = 68.000000000000000000
+        Position.Y = 57.000000000000000000
+        Size.Width = 218.000000000000000000
+        Size.Height = 19.000000000000000000
+        Size.PlatformDefault = False
+        TabOrder = 4
+      end
+      object Label2: TLabel
+        Position.X = 16.000000000000000000
+        Position.Y = 59.000000000000000000
+        Size.Width = 50.000000000000000000
+        Size.Height = 17.000000000000000000
+        Size.PlatformDefault = False
+        Text = 'Idade:'
+        TabOrder = 39
+      end
+      object edtNome: TEdit
+        Touch.InteractiveGestures = [LongTap, DoubleTap]
+        Anchors = [akLeft, akTop, akRight]
+        TabOrder = 41
+        Position.X = 68.000000000000000000
+        Position.Y = 29.000000000000000000
+        Size.Width = 253.000000000000000000
+        Size.Height = 22.000000000000000000
+        Size.PlatformDefault = False
+      end
+      object Label1: TLabel
+        Position.X = 16.000000000000000000
+        Position.Y = 32.000000000000000000
+        Size.Width = 50.000000000000000000
+        Size.Height = 17.000000000000000000
+        Size.PlatformDefault = False
+        Text = 'Nome:'
+        TabOrder = 38
+      end
+    end
+    object Layout2: TLayout
+      Align = Top
+      Position.Y = 137.000000000000000000
+      Size.Width = 334.000000000000000000
+      Size.Height = 99.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 35
+      object ImageFoto1: TImage
+        MultiResBitmap = <
+          item
+          end>
+        Position.X = 16.000000000000000000
+        Position.Y = 10.000000000000000000
+        Size.Width = 80.000000000000000000
+        Size.Height = 80.000000000000000000
+        Size.PlatformDefault = False
+      end
+      object ImageFoto2: TImage
+        MultiResBitmap = <
+          item
+          end>
+        Anchors = [akLeft, akTop, akRight]
+        Position.X = 113.000000000000000000
+        Position.Y = 10.000000000000000000
+        Size.Width = 113.000000000000000000
+        Size.Height = 80.000000000000000000
+        Size.PlatformDefault = False
+        WrapMode = Center
+      end
+      object ImageFoto3: TImage
+        MultiResBitmap = <
+          item
+          end>
+        Anchors = [akTop, akRight]
+        Position.X = 242.000000000000000000
+        Position.Y = 10.000000000000000000
+        Size.Width = 80.000000000000000000
+        Size.Height = 80.000000000000000000
+        Size.PlatformDefault = False
+      end
+    end
+  end
+  object GroupBox2: TGroupBox
+    Align = Top
+    Margins.Left = 5.000000000000000000
+    Margins.Right = 5.000000000000000000
+    Margins.Bottom = 5.000000000000000000
+    Position.X = 5.000000000000000000
+    Position.Y = 254.000000000000000000
+    Size.Width = 334.000000000000000000
+    Size.Height = 209.000000000000000000
+    Size.PlatformDefault = False
+    Text = 'Debug'
+    TabOrder = 7
+    object Memo1: TMemo
+      Touch.InteractiveGestures = [Pan, LongTap, DoubleTap]
+      DataDetectorTypes = []
+      Align = Client
+      Margins.Left = 5.000000000000000000
+      Margins.Top = 20.000000000000000000
+      Margins.Right = 5.000000000000000000
+      Margins.Bottom = 5.000000000000000000
+      Size.Width = 324.000000000000000000
+      Size.Height = 184.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 38
+      Viewport.Width = 320.000000000000000000
+      Viewport.Height = 180.000000000000000000
+    end
+  end
+  object btnChangeObject: TButton
+    Position.X = 185.000000000000000000
+    Position.Y = 505.000000000000000000
+    Size.Width = 151.000000000000000000
+    Size.Height = 32.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 8
+    Text = 'Alterar Objeto'
+    TextSettings.Trimming = None
+    OnClick = btnChangeObjectClick
+  end
+  object OpenDialog1: TOpenDialog
+    Left = 200
+    Top = 24
+  end
+end
