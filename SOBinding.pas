@@ -1,4 +1,4 @@
-unit SO.Binding_junto_e_misturado;
+unit SOBinding;
 
 interface
 
@@ -25,11 +25,27 @@ type
     Adapter: IBindAdapter;
   end;
 
+  TSOBinder = class;
+
+  // Evento disparado quando propriedade ligada muda
+  TSOPropertyChangedEvent = procedure(
+    Sender: TSOBinder;
+    AObject: TObject;
+    const APropertyName: string;
+    const AOldValue, ANewValue: TValue;
+    AFromControl: Boolean
+  ) of object;
+
   TSOBinder = class
   private
     FRttiCtx: TRttiContext;
     FMaps: TObjectList<TBindMap>;
     FMapByControl: TDictionary<TFmxObject, TBindMap>;
+
+    // para evitar loop: lista de controles que estamos atualizando programaticamente
+    FUpdatingControls: TList<TFmxObject>;
+
+    FOnPropertyChanged: TSOPropertyChangedEvent;
 
     procedure ControlChanged(Sender: TObject);
     function FindMapByControl(AControl: TFmxObject): TBindMap;
@@ -40,6 +56,13 @@ type
     function FindEventProp(AControl: TFmxObject; out PropInfo: PPropInfo): Boolean;
     procedure TrySetPropValue(AObj: TObject; AProp: TRttiProperty; const AValue: TValue);
     function TryConvertForProp(const AValue: TValue; APropType: TRttiType): TValue;
+
+    procedure BeginUpdateControl(AControl: TFmxObject);
+    procedure EndUpdateControl(AControl: TFmxObject);
+    function IsUpdatingControl(AControl: TFmxObject): Boolean;
+
+    procedure DoPropertyChanged(AObject: TObject; const APropertyName: string;
+      const AOldValue, ANewValue: TValue; AFromControl: Boolean);
   public
     constructor Create;
     destructor Destroy; override;
@@ -50,6 +73,8 @@ type
     procedure RefreshAll;
     procedure RefreshControl(AControl: TFmxObject);
     procedure Unbind(AControl: TFmxObject); // remove binding de um controle
+
+    property OnPropertyChanged: TSOPropertyChangedEvent read FOnPropertyChanged write FOnPropertyChanged;
   end;
 
   // Adapters
@@ -108,6 +133,37 @@ type
     PropName: string;
   end;
 
+function TValueEquals(const A, B: TValue): Boolean;
+begin
+  if A.IsEmpty and B.IsEmpty then
+    Exit(True);
+
+  if A.Kind <> B.Kind then
+    Exit(False);
+
+  case A.Kind of
+    tkString, tkLString, tkUString, tkWString:
+      Result := A.AsString = B.AsString;
+
+    tkInteger, tkInt64:
+      Result := A.AsInt64 = B.AsInt64;
+
+    tkFloat:
+      Result := A.AsExtended = B.AsExtended;
+
+    tkEnumeration:
+      if A.TypeInfo = TypeInfo(Boolean) then
+        Result := A.AsBoolean = B.AsBoolean
+      else
+        Result := A.AsOrdinal = B.AsOrdinal;
+
+    tkClass:
+      Result := A.AsObject = B.AsObject;
+
+  else
+    Result := A.ToString = B.ToString; // fallback seguro
+  end;
+end;
 { TSOBinder }
 
 constructor TSOBinder.Create;
@@ -116,6 +172,7 @@ begin
   FRttiCtx := TRttiContext.Create;
   FMaps := TObjectList<TBindMap>.Create(True);
   FMapByControl := TDictionary<TFmxObject, TBindMap>.Create;
+  FUpdatingControls := TList<TFmxObject>.Create;
 end;
 
 destructor TSOBinder.Destroy;
@@ -128,6 +185,7 @@ begin
 
   FMapByControl.Free;
   FMaps.Free;
+  FUpdatingControls.Free;
   inherited;
 end;
 
@@ -215,12 +273,35 @@ procedure TSOBinder.RefreshControl(AControl: TFmxObject);
 var
   bm: TBindMap;
   val: TValue;
+  oldCtrlVal: TValue;
 begin
   bm := FindMapByControl(AControl);
   if bm = nil then Exit;
 
+  // valor do objeto (novo -> irá para controle)
   val := bm.PropInfo.GetValue(bm.Obj);
-  bm.Adapter.ValueToControl(bm.Control, val);
+
+  // valor atual do controle
+  try
+    oldCtrlVal := bm.Adapter.ControlToValue(bm.Control);
+  except
+    oldCtrlVal := TValue.Empty;
+  end;
+
+  // se iguais, não atualiza o controle nem dispara evento
+  if (not oldCtrlVal.IsEmpty) and TValueEquals(oldCtrlVal, val) then
+    Exit;
+
+  // marca atualização programática para evitar loop
+  BeginUpdateControl(bm.Control);
+  try
+    bm.Adapter.ValueToControl(bm.Control, val);
+  finally
+    EndUpdateControl(bm.Control);
+  end;
+
+  // dispara evento informando que foi objeto -> controle
+  DoPropertyChanged(bm.Obj, bm.PropName, oldCtrlVal, val, False);
 end;
 
 function TSOBinder.FindMapByControl(AControl: TFmxObject): TBindMap;
@@ -233,19 +314,49 @@ procedure TSOBinder.ControlChanged(Sender: TObject);
 var
   ctrl: TFmxObject;
   bm: TBindMap;
-  val: TValue;
+  valFromCtrl: TValue;
+  oldVal: TValue;
+  converted: TValue;
 begin
   if not (Sender is TFmxObject) then Exit;
   ctrl := TFmxObject(Sender);
   bm := FindMapByControl(ctrl);
   if bm = nil then Exit;
 
+  // se estamos atualizando programaticamente, ignora o evento para evitar loop
+  if IsUpdatingControl(ctrl) then Exit;
+
   try
-    val := bm.Adapter.ControlToValue(bm.Control);
-    TrySetPropValue(bm.Obj, bm.PropInfo, val);
+    valFromCtrl := bm.Adapter.ControlToValue(bm.Control);
   except
-    // swallow — opcional: log
+    Exit;
   end;
+
+  // pega valor antigo do objeto
+  try
+    oldVal := bm.PropInfo.GetValue(bm.Obj);
+  except
+    oldVal := TValue.Empty;
+  end;
+
+  // tenta converter para o tipo da propriedade
+  converted := TryConvertForProp(valFromCtrl, bm.PropInfo.PropertyType);
+  if converted.IsEmpty then Exit;
+
+  // Se igual, não faz nada
+
+  if (not oldVal.IsEmpty) and TValueEquals(oldVal, converted) then
+    Exit;
+
+  // aplica valor ao objeto
+  try
+    bm.PropInfo.SetValue(bm.Obj, converted);
+  except
+    Exit;
+  end;
+
+  // dispara evento indicando alteração vinda do controle
+  DoPropertyChanged(bm.Obj, bm.PropName, oldVal, valFromCtrl, True);
 end;
 
 function TSOBinder.FindEventProp(AControl: TFmxObject; out PropInfo: PPropInfo): Boolean;
@@ -338,7 +449,7 @@ begin
 
   try
     // restore original method (even if nil)
-    SetMethodProp(AControl, PropInfo, holder.OrigMethod);
+    SetMethodProp(AControl, propInfo, holder.OrigMethod);
   except
     // ignore
   end;
@@ -444,6 +555,34 @@ begin
 
   // fallback
   Result := TValue.Empty;
+end;
+
+{ Helpers for update guard }
+
+procedure TSOBinder.BeginUpdateControl(AControl: TFmxObject);
+begin
+  if (AControl = nil) then Exit;
+  if not FUpdatingControls.Contains(AControl) then
+    FUpdatingControls.Add(AControl);
+end;
+
+procedure TSOBinder.EndUpdateControl(AControl: TFmxObject);
+begin
+  if (AControl = nil) then Exit;
+  if FUpdatingControls.Contains(AControl) then
+    FUpdatingControls.Remove(AControl);
+end;
+
+function TSOBinder.IsUpdatingControl(AControl: TFmxObject): Boolean;
+begin
+  Result := (AControl <> nil) and FUpdatingControls.Contains(AControl);
+end;
+
+procedure TSOBinder.DoPropertyChanged(AObject: TObject; const APropertyName: string;
+  const AOldValue, ANewValue: TValue; AFromControl: Boolean);
+begin
+  if Assigned(FOnPropertyChanged) then
+    FOnPropertyChanged(Self, AObject, APropertyName, AOldValue, ANewValue, AFromControl);
 end;
 
 { Adapters implementation }

@@ -9,7 +9,7 @@ uses
   System.StartUpCopy,
   FMX.Forms,
   sample.form in 'sample.form.pas' {Form1},
-  SO.Binding_junto_e_misturado in 'SO.Binding_junto_e_misturado.pas';
+  SOBinding in 'SOBinding.pas';
 
 {$R *.res}
 

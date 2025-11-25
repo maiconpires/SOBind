@@ -6,8 +6,8 @@ uses
   System.SysUtils, System.Classes, System.Types,
   FMX.Forms, FMX.StdCtrls, FMX.Edit, FMX.Controls, FMX.ListBox,
   FMX.Objects, FMX.DateTimeCtrls, FMX.Types, FMX.Controls.Presentation,
-  SO.Binding_junto_e_misturado, FMX.Memo.Types, FMX.ScrollBox, FMX.Memo,
-  FMX.Dialogs, FMX.Graphics, FMX.Layouts;
+  SOBinding, FMX.Memo.Types, FMX.ScrollBox, FMX.Memo,
+  FMX.Dialogs, FMX.Graphics, FMX.Layouts, System.Rtti;
 
 type
   TPessoa = class
@@ -20,12 +20,13 @@ type
     FUf: String;
     FFotoBitmap: TBitmap;
     FFotoBase64: String;
+    procedure SetNome(const Value: string);
 
   public
     constructor Create;
     destructor Destroy; override;
 
-    property Nome: string read FNome write FNome;
+    property Nome: string read FNome write SetNome;
     property Ativo: Boolean read FAtivo write FAtivo;
     property Idade: Integer read FIdade write FIdade;
     property DataNasc: TDate read FDataNasc write FDataNasc;
@@ -70,6 +71,13 @@ type
     procedure btnChangeObjectClick(Sender: TObject);
   private
     procedure PopularEstados;
+  public
+    procedure OnBindUpdate(Sender: TSOBinder;
+    AObject: TObject;
+    const APropertyName: string;
+    const AOldValue, ANewValue: TValue;
+    AFromControl: Boolean);
+
   end;
 
 var
@@ -82,6 +90,24 @@ var
 implementation
 
 {$R *.fmx}
+
+function TValueToText(const V: TValue): string;
+begin
+  if V.IsEmpty then
+    Exit('(empty)');
+
+  try
+    if V.IsObject then
+      Exit(Format('(Object: %s)', [V.AsObject.ClassName]));
+
+    if V.IsArray then
+      Exit('(array)');
+
+    Result := V.ToString;
+  except
+    Result := '(unconvertible)';
+  end;
+end;
 
 procedure TForm1.btnChangeObjectClick(Sender: TObject);
 begin
@@ -157,6 +183,7 @@ begin
   PopularEstados;
 
   Binder := TSOBinder.Create;
+  Binder.OnPropertyChanged := OnBindUpdate;
 
   // Bindings
   Binder.BindTwoWay(edtNome, Pessoa, 'Nome', TTextAdapter.Create);
@@ -177,6 +204,22 @@ procedure TForm1.FormDestroy(Sender: TObject);
 begin
   Binder.Free;
   Pessoa.Free;
+end;
+
+procedure TForm1.OnBindUpdate(Sender: TSOBinder; AObject: TObject; const APropertyName: string; const AOldValue, ANewValue: TValue; AFromControl: Boolean);
+begin
+ Memo1.Lines.Add(
+    Format('[%s] (%s) %s = %s -> %s (%s)',
+      [
+        Sender.ClassName,
+        AObject.ClassName,
+        APropertyName,
+        TValueToText(AOldValue),
+        TValueToText(ANewValue),
+        BoolToStr(AFromControl, True)
+      ]
+    )
+  );
 end;
 
 procedure TForm1.PopularEstados;
@@ -205,6 +248,14 @@ begin
     FFotoBitmap.Free;
 
   inherited;
+end;
+
+procedure TPessoa.SetNome(const Value: string);
+begin
+  if Value.Length <= 4 then
+    raise Exception.Create('Nome não pode ser menor 4 caracters');
+
+  FNome := Value;
 end;
 
 end.
