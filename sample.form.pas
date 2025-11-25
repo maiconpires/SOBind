@@ -91,23 +91,23 @@ implementation
 
 {$R *.fmx}
 
-function TValueToText(const V: TValue): string;
-begin
-  if V.IsEmpty then
-    Exit('(empty)');
-
-  try
-    if V.IsObject then
-      Exit(Format('(Object: %s)', [V.AsObject.ClassName]));
-
-    if V.IsArray then
-      Exit('(array)');
-
-    Result := V.ToString;
-  except
-    Result := '(unconvertible)';
-  end;
-end;
+//function TValueToText(const V: TValue): string;
+//begin
+//  if V.IsEmpty then
+//    Exit('(empty)');
+//
+//  try
+//    if V.IsObject then
+//      Exit(Format('(Object: %s)', [V.AsObject.ClassName]));
+//
+//    if V.IsArray then
+//      Exit('(array)');
+//
+//    Result := V.ToString;
+//  except
+//    Result := '(unconvertible)';
+//  end;
+//end;
 
 procedure TForm1.btnChangeObjectClick(Sender: TObject);
 begin
@@ -214,8 +214,8 @@ begin
         Sender.ClassName,
         AObject.ClassName,
         APropertyName,
-        TValueToText(AOldValue),
-        TValueToText(ANewValue),
+        AOldValue.ToText,
+        ANewValue.ToText,
         BoolToStr(AFromControl, True)
       ]
     )

@@ -25,6 +25,10 @@ type
     Adapter: IBindAdapter;
   end;
 
+  TValueHelper = record Helper for TValue
+    function ToText: String;
+  end;
+
   TSOBinder = class;
 
   // Evento disparado quando propriedade ligada muda
@@ -908,6 +912,27 @@ begin
         Exit;
       end;
   end;
+end;
+
+{ TValueHelper }
+
+function TValueHelper.ToText: String;
+begin
+  if Self.IsEmpty then
+    Exit('(empty)');
+
+  try
+    if Self.IsObject then
+      Exit(Format('(Object: %s)', [Self.AsObject.ClassName]));
+
+    if Self.IsArray then
+      Exit('(array)');
+
+    Result := Self.ToString;
+  except
+    Result := '(unconvertible)';
+  end;
+
 end;
 
 end.
