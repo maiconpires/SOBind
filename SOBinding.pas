@@ -7,7 +7,8 @@ uses
   System.Generics.Defaults, System.Types, System.Math,
   FMX.Types, FMX.Controls, FMX.StdCtrls, FMX.Edit, FMX.Memo, FMX.ListBox,
   FMX.Objects, FMX.Controls.Presentation, FMX.DateTimeCtrls, FMX.Graphics,
-  FMX.Layouts, System.NetEncoding, System.IOUtils, System.TypInfo, System.UITypes;
+  FMX.Layouts, System.NetEncoding, System.IOUtils, System.TypInfo, System.UITypes, Data.DB,
+  System.JSON, System.DateUtils, FMX.Dialogs;
 
 type
   IBindAdapter = interface
@@ -27,6 +28,12 @@ type
 
   TValueHelper = record Helper for TValue
     function ToText: String;
+  end;
+
+ TObjectJSONHelper = class helper for TObject
+  public
+    procedure FromJSONObject(AJSON: TJSONObject);
+    function ToJSONObject: TJSONObject;
   end;
 
   TSOBinder = class;
@@ -78,6 +85,9 @@ type
     procedure RefreshControl(AControl: TFmxObject);
     procedure Unbind(AControl: TFmxObject); // remove binding de um controle
 
+    procedure DataSetToObject(DataSet: TDataSet; Obj: TObject);
+    function DataSetToObjectList<T: class, constructor>(DataSet: TDataSet): TObjectList<T>;
+
     property OnPropertyChanged: TSOPropertyChangedEvent read FOnPropertyChanged write FOnPropertyChanged;
   end;
 
@@ -121,6 +131,14 @@ type
 
   // Image adapter: aceita TBitmap, filename (string), base64 string.
   TImageAdapter = class(TInterfacedObject, IBindAdapter)
+    function ControlToValue(Control: TFmxObject): TValue;
+    procedure ValueToControl(Control: TFmxObject; const Value: TValue);
+  private
+    function StringIsBase64(const S: string): Boolean;
+    function BitmapFromBase64(const S: string): TBitmap;
+  end;
+
+  TCircleAdapter = class(TInterfacedObject, IBindAdapter)
     function ControlToValue(Control: TFmxObject): TValue;
     procedure ValueToControl(Control: TFmxObject; const Value: TValue);
   private
@@ -177,6 +195,51 @@ begin
   FMaps := TObjectList<TBindMap>.Create(True);
   FMapByControl := TDictionary<TFmxObject, TBindMap>.Create;
   FUpdatingControls := TList<TFmxObject>.Create;
+end;
+
+procedure TSOBinder.DataSetToObject(DataSet: TDataSet; Obj: TObject);
+var
+  ctx: TRttiContext;
+  typ: TRttiType;
+  prop: TRttiProperty;
+  field: TField;
+begin
+  ctx := TRttiContext.Create;
+  typ := ctx.GetType(Obj.ClassType);
+
+  for prop in typ.GetProperties do
+  begin
+    field := DataSet.FindField(prop.Name);
+    if Assigned(field) and prop.IsWritable then
+    begin
+      case field.DataType of
+        ftInteger, ftSmallint, ftWord:
+          prop.SetValue(Obj, field.AsInteger);
+        ftString, ftWideString, ftMemo:
+          prop.SetValue(Obj, field.AsString);
+        ftBoolean:
+          prop.SetValue(Obj, field.AsBoolean);
+        ftFloat, ftCurrency, ftBCD:
+          prop.SetValue(Obj, field.AsFloat);
+        // Add more types as needed
+      end;
+    end;
+  end;
+end;
+
+function TSOBinder.DataSetToObjectList<T>(DataSet: TDataSet): TObjectList<T>;
+var
+  Obj: T;
+begin
+  Result := TObjectList<T>.Create(True);
+  DataSet.First;
+  while not DataSet.Eof do
+  begin
+    Obj := T.Create;
+    DataSetToObject(DataSet, Obj);
+    Result.Add(Obj);
+    DataSet.Next;
+  end;
 end;
 
 destructor TSOBinder.Destroy;
@@ -589,8 +652,6 @@ begin
     FOnPropertyChanged(Self, AObject, APropertyName, AOldValue, ANewValue, AFromControl);
 end;
 
-{ Adapters implementation }
-
 { TTextAdapter }
 function TTextAdapter.ControlToValue(Control: TFmxObject): TValue;
 begin
@@ -933,6 +994,213 @@ begin
     Result := '(unconvertible)';
   end;
 
+end;
+
+{ TObjectJSONHelper }
+
+procedure TObjectJSONHelper.FromJSONObject(AJSON: TJSONObject);
+var
+  ctx: TRttiContext;
+  ti: TRttiType;
+  prop: TRttiProperty;
+  v: TJSONValue;
+begin
+  var s := AJSON.Format;
+
+  if AJSON = nil then
+    Exit;
+
+  ctx := TRttiContext.Create;
+  ti := ctx.GetType(Self.ClassType);
+
+  for prop in ti.GetProperties do
+  begin
+    if not prop.IsWritable then
+      Continue;
+
+    v := AJSON.GetValue(prop.Name);
+    if v = nil then
+      Continue;
+
+    case prop.PropertyType.TypeKind of
+      tkInteger:
+        prop.SetValue(Self, StrToIntDef(v.Value, 0));
+
+      tkUString, tkString, tkWString, tkLString:
+        prop.SetValue(Self, v.Value);
+
+      tkFloat:
+        if prop.PropertyType.Handle = TypeInfo(TDateTime) then
+          prop.SetValue(Self, ISO8601ToDate(v.Value, False))
+        else
+          prop.SetValue(Self, StrToFloatDef(v.Value, 0));
+
+      tkEnumeration:
+        if prop.PropertyType.Handle = TypeInfo(Boolean) then
+          prop.SetValue(Self, SameText(v.Value, 'true'));
+    end;
+  end;
+end;
+
+function TObjectJSONHelper.ToJSONObject: TJSONObject;
+var
+  ctx: TRttiContext;
+  ti: TRttiType;
+  prop: TRttiProperty;
+  v: TValue;
+  jo: TJSONObject;
+  bmp: TBitmap;
+  ms: TMemoryStream;
+  b64: string;
+begin
+  jo := TJSONObject.Create;
+  ctx := TRttiContext.Create;
+  ti := ctx.GetType(Self.ClassType);
+
+  for prop in ti.GetProperties do
+  begin
+    if not prop.IsReadable then Continue;
+    v := prop.GetValue(Self);
+
+    case prop.PropertyType.TypeKind of
+      tkInteger:
+        jo.AddPair(prop.Name, TJSONNumber.Create(v.AsInteger));
+
+      tkUString, tkString, tkWString, tkLString:
+        jo.AddPair(prop.Name, TJSONString.Create(v.AsString));
+
+      tkFloat:
+        if prop.PropertyType.Handle = TypeInfo(TDateTime) then
+          jo.AddPair(prop.Name, DateToISO8601(v.AsExtended, False))
+        else
+          jo.AddPair(prop.Name, TJSONNumber.Create(v.AsExtended));
+
+      tkEnumeration:
+        if prop.PropertyType.Handle = TypeInfo(Boolean) then
+          jo.AddPair(prop.Name, TJSONBool.Create(v.AsBoolean));
+    end;
+  end;
+
+  Result := jo;
+end;
+
+{ TCircleAdapter }
+
+function TCircleAdapter.BitmapFromBase64(const S: string): TBitmap;
+var
+  bytes: TBytes;
+  ms: TMemoryStream;
+  bmp: TBitmap;
+begin
+  bmp := nil;
+  Result := nil;
+  try
+    bytes := TNetEncoding.Base64.DecodeStringToBytes(S);
+    ms := TMemoryStream.Create;
+    try
+      if Length(bytes) > 0 then
+        ms.WriteBuffer(bytes[0], Length(bytes));
+      ms.Position := 0;
+      bmp := TBitmap.CreateFromStream(ms);
+      Result := bmp;
+    finally
+      ms.Free;
+    end;
+  except
+    FreeAndNil(bmp);
+    raise;
+  end;
+end;
+
+function TCircleAdapter.ControlToValue(Control: TFmxObject): TValue;
+begin
+  if Control is TCircle then
+  begin
+    if TCircle(Control).Fill.Bitmap.Bitmap <> nil then
+      Result := TValue.From<TBitmap>(TCircle(Control).Fill.Bitmap.Bitmap)
+    else
+      Result := TValue.Empty;
+  end
+  else
+    raise Exception.Create('TCircleAdapter: controle não suportado: ' + Control.ClassName);
+end;
+
+function TCircleAdapter.StringIsBase64(const S: string): Boolean;
+var
+  t: string;
+begin
+  t := S.Trim;
+  Result := (t <> '') and (Pos(' ', t) = 0) and ((Length(t) mod 4) = 0) and
+            ((Pos('=', t) > 0) or (Pos('/', t) > 0) or (Pos('+', t) > 0));
+end;
+
+procedure TCircleAdapter.ValueToControl(Control: TFmxObject;
+  const Value: TValue);
+var
+  bmp: TBitmap;
+  s: string;
+  filename: string;
+begin
+  if not (Control is TCircle) then
+    raise Exception.Create('TCircleAdapter: controle não suportado: ' + Control.ClassName);
+
+  // TBitmap direto
+  if Value.IsObject and (Value.AsObject is TBitmap) then
+  begin
+    TCircle(Control).Fill.Bitmap.Bitmap.Assign(TBitmap(Value.AsObject));
+    Exit;
+  end;
+
+  // string: pode ser filename ou base64
+  s := Value.ToString;
+  if s = '' then
+  begin
+    TCircle(Control).Fill.Bitmap.Bitmap := nil;
+    Exit;
+  end;
+
+  // arquivo
+  if TFile.Exists(s) then
+  begin
+    bmp := TBitmap.Create;
+    try
+      bmp.LoadFromFile(s);
+      TCircle(Control).Fill.Bitmap.Bitmap := bmp;
+    finally
+      bmp.Free;
+    end;
+    Exit;
+  end;
+
+  // base64
+  if StringIsBase64(s) then
+  begin
+    bmp := BitmapFromBase64(s);
+    try
+      if Assigned(bmp) then
+        TCircle(Control).Fill.Bitmap.Bitmap := bmp;
+    finally
+      bmp.Free;
+    end;
+    Exit;
+  end;
+
+  // fallback: tenta caminho absoluto
+  filename := TPath.GetFullPath(s);
+  if TFile.Exists(filename) then
+  begin
+    bmp := TBitmap.Create;
+    try
+      bmp.LoadFromFile(filename);
+      TCircle(Control).Fill.Bitmap.Bitmap := bmp;
+    finally
+      bmp.Free;
+    end;
+    Exit;
+  end;
+
+  // se não encontrou, limpa
+  TCircle(Control).Fill.Bitmap.Bitmap := nil;
 end;
 
 end.
